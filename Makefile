@@ -12,7 +12,10 @@ LIBS=-L. -lglfw -lGLU -lGL -lXrandr -lXxf86vm -lXi -lXinerama -lX11 -lrt -ldl -l
 	$(CC) $(CFLAGS) -o $@ $<
 
 
-OBJECT_FILES=	test.o
+OBJECT_FILES=	test.o\
+				renderer.o\
+				vertexBuffer.o\
+				indexBuffer.o
 
 all : test
 

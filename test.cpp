@@ -1,25 +1,21 @@
-
-#include <iostream>
-
-#define GLEW_STATIC
-
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
+#include "renderer.h"
+#include "vertexBuffer.h"
+#include "indexBuffer.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-#include <fstream>
-#include <sstream>
+
+using namespace std;
 
 struct ShaderProgramSource{
-    std::string vs;
-    std::string fs;
+    string vs;
+    string fs;
 };
 
-static ShaderProgramSource ParseShader(const std::string& filepath){
+static ShaderProgramSource ParseShader(const string& filepath){
     //doing this the c++ way, which is slower but safer than the c way
 
-    std::ifstream stream(filepath);
+    ifstream stream(filepath);
 
     enum class ShaderType{
         NONE = -1,
@@ -27,16 +23,16 @@ static ShaderProgramSource ParseShader(const std::string& filepath){
         FRAGMENT = 1
     };
 
-    std::string line;
-    std::stringstream ss[2];
+    string line;
+    stringstream ss[2];
     ShaderType type = ShaderType::NONE;
 
     while (getline(stream, line)){
-        if (line.find("#shader") != std::string::npos){
-            if (line.find("vertex") != std::string::npos){
+        if (line.find("#shader") != string::npos){
+            if (line.find("vertex") != string::npos){
                 type = ShaderType::VERTEX;
             }
-            else if (line.find("fragment") != std::string::npos){
+            else if (line.find("fragment") != string::npos){
                 type = ShaderType::FRAGMENT;
             }
         }
@@ -49,27 +45,27 @@ static ShaderProgramSource ParseShader(const std::string& filepath){
     return {ss[0].str(), ss[1].str()};
 }
 
-static unsigned int CompileShader(unsigned int type, const std::string& source){
+static unsigned int CompileShader(unsigned int type, const string& source){
 
     unsigned int id = glCreateShader(type);
     const char* src = source.c_str();
-    glShaderSource(id, 1, &src, nullptr); //nullptr tells OpenGL that our program string is null-terminated
-    glCompileShader(id);
+    GL_CALL(glShaderSource(id, 1, &src, nullptr)); //nullptr tells OpenGL that our program string is null-terminated
+    GL_CALL(glCompileShader(id));
 
     //Error handling
     int result;
-    glGetShaderiv(id, GL_COMPILE_STATUS, &result); 
+    GL_CALL(glGetShaderiv(id, GL_COMPILE_STATUS, &result)); 
     if (result == GL_FALSE){
         // fetch the error message
         int length;
-        glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
+        GL_CALL(glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length));
         char message[length]; //if c++ doesnt like growing the stack in this way, you can use alloca(length)
-        glGetShaderInfoLog(id, length, &length, message);
+        GL_CALL(glGetShaderInfoLog(id, length, &length, message));
 
-        std::cout << (type == GL_VERTEX_SHADER ? "Vertex" : "Fragment") << " shader compilation error" << std::endl;
-        std::cout << message << std::endl;
+        cout << (type == GL_VERTEX_SHADER ? "Vertex" : "Fragment") << " shader compilation error" << endl;
+        cout << message << endl;
 
-        glDeleteShader(id);
+        GL_CALL(glDeleteShader(id));
         return 0;
     }
 
@@ -77,23 +73,37 @@ static unsigned int CompileShader(unsigned int type, const std::string& source){
     return id;
 }
 
-static unsigned int CreateShader(const std::string& vertexShader, const std::string& fragmentShader){ // note: & denotes a "reference", which is like a pointer that is never allowed to be NULL
+static unsigned int CreateShader(const string& vertexShader, const string& fragmentShader){ // note: & denotes a "reference", which is like a pointer that is never allowed to be NULL
     
     unsigned int program = glCreateProgram();
     unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader);
     unsigned int fs = CompileShader(GL_FRAGMENT_SHADER, fragmentShader);
     // add something to catch if CompileShader failed
 
-    glAttachShader(program, vs);
-    glAttachShader(program, fs);
-    glLinkProgram(program);
-    glValidateProgram(program);
+    GL_CALL(glAttachShader(program, vs));
+    GL_CALL(glAttachShader(program, fs));
+    GL_CALL(glLinkProgram(program));
+    GL_CALL(glValidateProgram(program));
 
     // shaders are now linked, we can delete our intermediate shaders
-    glDeleteShader(vs);
-    glDeleteShader(fs);
+    GL_CALL(glDeleteShader(vs));
+    GL_CALL(glDeleteShader(fs));
 
     return program;
+}
+
+void changeColor(float currColor[4], int u_location){
+    
+    currColor[0] += 0.01 - ((currColor[0] + 0.01) > 1);
+    currColor[1] += 0.01 - ((currColor[1] + 0.10) > 1);
+    currColor[2] += 0.01 - ((currColor[2] + 0.15) > 1);
+    //currColor[3] += 0.01 - ((currColor[3] + 0.01) > 1);
+
+
+    
+    GL_CALL(glUniform4f(u_location, currColor[0], currColor[1], currColor[2], currColor[3]));
+    
+
 }
 
 
@@ -122,12 +132,12 @@ int main(void){
 
     // initialize glew. Note: has to happen in a valid OpenGL context (which is created by glfwMakeContextCurrent())
     if (glewInit() != GLEW_OK){
-        std::cout << "glewInit error\n";
+        cout << "glewInit error\n";
         glfwTerminate();
         return -1;
     }
 
-    std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
+    cout << "OpenGL version: " << glGetString(GL_VERSION) << endl;
 
     // positions we feed into the buffer. If we were doing this for real we should make a struct and use offsets for attributes
     float positions[] = { 
@@ -143,35 +153,54 @@ int main(void){
         2, 3, 0
     };
 
+    vertexBuffer vb(positions, 4 * 2 * sizeof(float));
+
     // lets define a buffer out here 
     unsigned int buffer;
-    glGenBuffers(1, &buffer); 
-    glBindBuffer(GL_ARRAY_BUFFER, buffer); 
-    glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(float), positions, GL_STATIC_DRAW); //GL_STATIC_DRAW is just a hint for the implementation, can do other behavior with it but may be slow
+    GL_CALL(glGenBuffers(1, &buffer)); 
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, buffer)); 
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(float), positions, GL_STATIC_DRAW)); //GL_STATIC_DRAW is just a hint for the implementation, can do other behavior with it but may be slow
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (const void*) 0); // tell OpenGl how to read our buffer
+    GL_CALL(glEnableVertexAttribArray(0));
+    GL_CALL(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (const void*) 0)); // tell OpenGl how to read our buffer
+
+    indexBuffer ib(indices, 6);
 
     unsigned int ibo;
-    glGenBuffers(1, &ibo); 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo); 
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW); //HAS TO BE UNSIGNED
+    GL_CALL(glGenBuffers(1, &ibo)); 
+    GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo)); 
+    GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW)); //HAS TO BE UNSIGNED
 
     // cool so we have data, now we have to tell openGL what to do with it in the form of some shaders
     
     ShaderProgramSource source = ParseShader("res/shaders/Basic.shader");
 
     unsigned int shader = CreateShader(source.vs, source.fs);
-    glUseProgram(shader);
+    GL_CALL(glUseProgram(shader));
+
+    // Uniform
+    float currColor[] = {0.2f, 0.3f, 0.4f, 1.0f};
+
+    int u_location = glGetUniformLocation(shader, "u_Color");
+
+    
+    GL_CALL(glUniform4f(u_location, currColor[0], currColor[1], currColor[2], currColor[3]));
+    
+    
+
 
     // render loop
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window)){
         /* Render here */
-        glClear(GL_COLOR_BUFFER_BIT);
+        GL_CALL(glClear(GL_COLOR_BUFFER_BIT));
 
 
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); 
+        changeColor(currColor, u_location);
+
+        
+        GL_CALL(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr)); 
+        
 
 
         /* Swap front and back buffers */
@@ -181,7 +210,7 @@ int main(void){
         glfwPollEvents();
     }
 
-    glDeleteProgram(shader);
+    GL_CALL(glDeleteProgram(shader));
 
     glfwTerminate();
     return 0;
