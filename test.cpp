@@ -147,29 +147,47 @@ int main(void){
         -0.5f, 0.5f   // 3
     };
     
+    
+
+
     // indices we use to tell OpenGL which vertices to draw
     unsigned int indices[] = { //HAS TO BE UNSIGNED
         0, 1, 2,
         2, 3, 0
     };
 
+    unsigned int vao;
+    GL_CALL(glGenVertexArrays(1,&vao));
+    GL_CALL(glBindVertexArray(vao));
+
+ //   vertexArray va;
+
     vertexBuffer vb(positions, 4 * 2 * sizeof(float));
 
-    // lets define a buffer out here 
+   /* va.addBuffer(vb);
+
+    bufferLayout layout;
+    layout.push<float>(3);
+    va.addLayout(layout);*/
+
+
+    /*// lets define a buffer out here 
     unsigned int buffer;
     GL_CALL(glGenBuffers(1, &buffer)); 
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, buffer)); 
     GL_CALL(glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(float), positions, GL_STATIC_DRAW)); //GL_STATIC_DRAW is just a hint for the implementation, can do other behavior with it but may be slow
-
+    */
     GL_CALL(glEnableVertexAttribArray(0));
     GL_CALL(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (const void*) 0)); // tell OpenGl how to read our buffer
 
     indexBuffer ib(indices, 6);
 
-    unsigned int ibo;
+    
+
+    /*unsigned int ibo;
     GL_CALL(glGenBuffers(1, &ibo)); 
     GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo)); 
-    GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW)); //HAS TO BE UNSIGNED
+    GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW)); //HAS TO BE UNSIGNED*/
 
     // cool so we have data, now we have to tell openGL what to do with it in the form of some shaders
     
@@ -197,6 +215,10 @@ int main(void){
 
 
         changeColor(currColor, u_location);
+
+//            va.bind();
+        GL_CALL(glBindVertexArray(vao));
+        ib.bind();
 
         
         GL_CALL(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr)); 
